@@ -9,7 +9,7 @@
 Перед запуском необходимо скачать файл модели с Google Drive:
 
 ```text
-Google Drive: [вставлю свою ссылку]
+Google Drive: https://drive.google.com/drive/folders/1AKxFZt8sA_Z_4qopkHd2H21bskOvpryX?usp=sharing
 ```
 
 Скачанный файл модели нужно положить в папку:

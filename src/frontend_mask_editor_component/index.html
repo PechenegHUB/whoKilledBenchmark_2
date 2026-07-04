@@ -1,0 +1,591 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1117;
+      --panel: #151923;
+      --panel2: #111620;
+      --border: rgba(250,250,250,.12);
+      --text: rgba(250,250,250,.92);
+      --muted: rgba(250,250,250,.62);
+      --accent: #ff4b5c;
+      --blue: #0060ff;
+      --green: #00d25a;
+      --red: #ff3232;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow-x:hidden; }
+    .editor { width:100%; min-height:980px; padding: 0 0 12px; position:relative; }
+    .loader { position:absolute; left:0; top:0; right:0; z-index:5; padding:12px; color: var(--muted); pointer-events:none; }
+    .content { display:block; visibility:hidden; opacity:0; min-height:940px; }
+    .content.ready { visibility:visible; opacity:1; transition:opacity .08s linear; }
+    .review-panel {
+      display:grid;
+      grid-template-columns: 1.05fr 1fr 1.1fr;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .toolbar {
+      display:grid;
+      grid-template-columns: 1.05fr .85fr 1.05fr 1.25fr;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .card {
+      border:1px solid var(--border);
+      border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015));
+      padding:12px;
+      min-width:0;
+    }
+    .label { font-size:13px; color:var(--muted); font-weight:700; margin-bottom:7px; }
+    .hint { color:var(--muted); font-size:12px; line-height:1.35; }
+    .metrics-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+    .metric-box { border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.025); border-radius:9px; padding:8px; min-width:0; }
+    .metric-label { color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .metric-value { color:var(--text); font-weight:800; margin-top:2px; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .notice { margin-top:8px; color:#ffe0a3; font-size:12px; border:1px solid rgba(255,224,163,.22); background:rgba(255,224,163,.08); border-radius:8px; padding:7px; }
+    .segmented, .actions, .base-row, .tool-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button, select, textarea, input[type="range"] { font:inherit; }
+    button, select {
+      background:#202532; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; cursor:pointer;
+    }
+    button:hover { border-color:rgba(255,255,255,.28); }
+    button.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; color:#ff8b95; }
+    .tool-btn { display:inline-flex; align-items:center; gap:7px; font-weight:700; }
+    .tool-btn.ordinary.active { border-color:var(--green); box-shadow:0 0 0 1px var(--green) inset; color:#bfffd8; }
+    .tool-btn.thin.active { border-color:var(--red); box-shadow:0 0 0 1px var(--red) inset; color:#ffc6c6; }
+    .tool-btn.talc.active { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; color:#bcd4ff; }
+    .tool-btn.eraser.active { border-color:rgba(255,255,255,.58); box-shadow:0 0 0 1px rgba(255,255,255,.36) inset; color:#fff; }
+    .swatch { width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,.45); flex:0 0 auto; }
+    .swatch.empty { background:transparent; border:1px dashed rgba(255,255,255,.55); }
+    .mini-btn, .base-btn { font-size:12px; padding:7px 9px; }
+    .action-btn { font-size:13px; padding:8px 10px; }
+    .action-btn.primary { background:#b41f32; border-color:#d93c4e; color:white; font-weight:800; }
+    .action-btn.save { background:#106b3f; border-color:#23975f; color:white; font-weight:800; }
+    .action-btn.ghost, .mini-btn.ghost { background:#171c27; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    .input-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    select { width:100%; }
+    textarea { width:100%; min-height:70px; resize:vertical; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px; }
+    .range-row { display:flex; align-items:center; gap:10px; }
+    .range-row input { flex:1; accent-color:var(--accent); }
+    .value-pill { min-width:52px; text-align:center; color:#ff7a85; font-weight:800; border:1px solid rgba(255,255,255,.1); border-radius:999px; padding:4px 8px; background:rgba(255,255,255,.025); }
+    .stage-shell {
+      position:relative;
+      width:100%;
+      height: var(--viewport-h, min(78vh, 900px));
+      min-height:560px;
+      background:#090b10;
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+      touch-action:none;
+    }
+    .stage {
+      position:absolute;
+      left:0; top:0;
+      width:var(--stage-w, 800px);
+      height:var(--stage-h, 500px);
+      transform-origin:0 0;
+      will-change:transform;
+    }
+    #bgImage, canvas { position:absolute; left:0; top:0; width:100%; height:100%; }
+    #bgImage { user-select:none; pointer-events:none; }
+    canvas { touch-action:none; }
+    .status { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:8px; color:var(--muted); font-size:12px; }
+    .status strong { color:var(--text); }
+    .worker-pill { display:inline-flex; align-items:center; gap:6px; }
+    .dot { width:8px; height:8px; border-radius:999px; background:#f5c542; display:inline-block; }
+    .dot.ok { background:#19a974; }
+    @media (max-width: 1100px) { .review-panel, .toolbar { grid-template-columns:1fr; } .metrics-grid { grid-template-columns: repeat(2,1fr); } }
+  </style>
+</head>
+<body>
+  <div class="editor">
+    <div id="loader" class="loader">Загрузка редактора маски…</div>
+    <div id="content" class="content">
+      <div class="review-panel">
+        <div class="card">
+          <div class="label">Экспертная оценка класса</div>
+          <div class="metrics-grid">
+            <div class="metric-box"><div class="metric-label">Класс модели</div><div id="modelClass" class="metric-value">—</div></div>
+            <div class="metric-box"><div class="metric-label">Финальный класс</div><div id="finalClass" class="metric-value">—</div></div>
+            <div class="metric-box"><div class="metric-label">Доля талька</div><div id="talcPercent" class="metric-value">—</div></div>
+            <div class="metric-box"><div class="metric-label">Уверенность</div><div id="confidence" class="metric-value">—</div></div>
+          </div>
+          <div id="reviewReason" class="notice" style="display:none;"></div>
+        </div>
+        <div class="card">
+          <div class="label">Решение эксперта</div>
+          <div id="decisionBtns" class="segmented">
+            <button data-decision="Подтверждаю класс модели" class="mini-btn active" type="button">Подтверждаю класс</button>
+            <button data-decision="Класс неверный" class="mini-btn" type="button">Класс неверный</button>
+            <button data-decision="Не уверен / нужна проверка" class="mini-btn" type="button">Не уверен</button>
+          </div>
+          <div class="input-row">
+            <div>
+              <div class="hint" style="margin-top:8px; margin-bottom:5px;">Правильный класс</div>
+              <select id="expertClassSelect"></select>
+            </div>
+            <div>
+              <div class="hint" style="margin-top:8px; margin-bottom:5px;">Качество маски</div>
+              <select id="maskQualitySelect">
+                <option>Маска корректная</option>
+                <option>Частично корректная</option>
+                <option>Маска неверная</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Комментарий эксперта</div>
+          <textarea id="expertComment" placeholder="Например: центральный участок надо перекрасить в обычные сульфиды, а мелкие синие зоны убрать ластиком..."></textarea>
+          <div class="hint">Все поля работают локально в браузере и не вызывают rerun Streamlit при вводе.</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="card">
+          <div class="label">Цвет разметки</div>
+          <div class="tool-row">
+            <button id="ordinaryBtn" class="tool-btn ordinary" type="button" data-class="1"><span class="swatch" style="background:var(--green)"></span>Обычные</button>
+            <button id="thinBtn" class="tool-btn thin" type="button" data-class="2"><span class="swatch" style="background:var(--red)"></span>Тонкие</button>
+            <button id="talcBtn" class="tool-btn talc active" type="button" data-class="3"><span class="swatch" style="background:var(--blue)"></span>Тальк</button>
+            <button id="eraserBtn" class="tool-btn eraser" type="button" data-class="0"><span class="swatch empty"></span>Ластик</button>
+          </div>
+          <div class="hint">1 — обычные, 2 — тонкие, 3 — тальк, E/0 — ластик. Ластик бесцветный и стирает класс в фон.</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Размер кисти</div>
+          <div class="range-row">
+            <input id="brush" type="range" min="5" max="90" step="1" value="25" />
+            <div id="brushValue" class="value-pill">25</div>
+          </div>
+          <div class="hint">[ и ] меняют размер кисти.</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Масштаб фотографии</div>
+          <div class="range-row">
+            <input id="zoom" type="range" min="25" max="500" step="5" value="100" />
+            <div id="zoomValue" class="value-pill">100%</div>
+          </div>
+          <div class="actions" style="margin-top:8px;">
+            <button id="fitBtn" class="mini-btn ghost" type="button">По размеру</button>
+            <button id="oneToOneBtn" class="mini-btn ghost" type="button">1:1</button>
+            <button id="zoomMinusBtn" class="mini-btn ghost" type="button">−</button>
+            <button id="zoomPlusBtn" class="mini-btn ghost" type="button">+</button>
+          </div>
+          <div class="hint">Колесо — zoom к курсору. Space/средняя кнопка — перемещение.</div>
+        </div>
+
+        <div class="card">
+          <div class="label">База и передача результата</div>
+          <div id="baseChoices" class="base-row" style="margin-bottom:8px;">
+            <button id="baseModelBtn" class="base-btn active" type="button">Маска модели</button>
+            <button id="baseExpertBtn" class="base-btn" type="button">Текущая экспертная маска</button>
+          </div>
+          <div class="actions">
+            <button id="undoBtn" class="action-btn ghost" type="button">↶ Отменить</button>
+            <button id="clearBtn" class="action-btn ghost" type="button">Очистить мазки</button>
+            <button id="applyBtn" class="action-btn primary" type="button">✅ Применить правку</button>
+            <button id="saveBtn" class="action-btn save" type="button">💾 Передать и сохранить</button>
+          </div>
+          <div class="hint">Python получает результат только после apply/save.</div>
+        </div>
+      </div>
+
+      <div id="stageShell" class="stage-shell">
+        <div id="stage" class="stage">
+          <img id="bgImage" alt="Редактируемое изображение" />
+          <canvas id="visibleCanvas"></canvas>
+          <canvas id="logicalCanvas" style="display:none;"></canvas>
+          <canvas id="cursorCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="status">
+        <span id="strokeStatus">Мазков: 0</span>
+        <span class="worker-pill"><i id="statusDot" class="dot"></i><strong id="engineStatus">готов</strong></span>
+        <span><span style="color:var(--green);">Зелёный</span> — обычные, <span style="color:var(--red);">красный</span> — тонкие, <span style="color:#8eb8ff;">синий</span> — тальк, ластик — фон</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const Streamlit = {
+    ready: () => window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:componentReady', apiVersion:1}, '*'),
+    setFrameHeight: (height) => window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setFrameHeight', height}, '*'),
+    setComponentValue: (value) => window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setComponentValue', value, dataType:'json'}, '*')
+  };
+
+  const CLASS_COLORS = {
+    0: {rgb:[0,0,0], css:'#000000', label:'Ластик'},
+    1: {rgb:[0,210,90], css:'#00d25a', label:'Обычные'},
+    2: {rgb:[255,50,50], css:'#ff3232', label:'Тонкие'},
+    3: {rgb:[0,96,255], css:'#0060ff', label:'Тальк'}
+  };
+
+  let args = {};
+  let currentClass = 3;
+  let baseChoice = 'model';
+  let imageW = 1, imageH = 1;
+  let displayW = 1, displayH = 1;
+  let zoom = 1, panX = 0, panY = 0;
+  let drawing = false, panning = false, lastPoint = null, lastPan = null, spaceDown = false;
+  let strokes = 0;
+  const undoStack = [];
+
+  const loader = document.getElementById('loader');
+  const content = document.getElementById('content');
+  const shell = document.getElementById('stageShell');
+  const stage = document.getElementById('stage');
+  const bgImage = document.getElementById('bgImage');
+  const visibleCanvas = document.getElementById('visibleCanvas');
+  const logicalCanvas = document.getElementById('logicalCanvas');
+  const cursorCanvas = document.getElementById('cursorCanvas');
+  const visibleCtx = visibleCanvas.getContext('2d');
+  const logicalCtx = logicalCanvas.getContext('2d');
+  const cursorCtx = cursorCanvas.getContext('2d');
+  const plainImage = new Image();
+  let plainReady = false;
+
+  const brush = document.getElementById('brush');
+  const brushValue = document.getElementById('brushValue');
+  const zoomInput = document.getElementById('zoom');
+  const zoomValue = document.getElementById('zoomValue');
+  const strokeStatus = document.getElementById('strokeStatus');
+  const engineStatus = document.getElementById('engineStatus');
+  const statusDot = document.getElementById('statusDot');
+
+  function setHeight(){
+    requestAnimationFrame(() => Streamlit.setFrameHeight(Math.max(980, document.body.scrollHeight + 24)));
+  }
+  function setReady(text='готов'){
+    engineStatus.textContent = text;
+    statusDot.classList.add('ok');
+    setHeight();
+  }
+  function formatPct(value){
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '—';
+    return `${num.toFixed(2)}%`;
+  }
+  function updateStatus(){ strokeStatus.textContent = `Мазков: ${strokes}`; }
+
+  function bgUrl(){
+    if (baseChoice === 'expert' && args.expertClassImage) return args.expertClassImage;
+    return args.modelClassImage || args.modelTalcImage || args.originalImage || '';
+  }
+  function setBaseChoice(choice, clear=true){
+    const next = (choice === 'expert' && args.expertClassImage) ? 'expert' : 'model';
+    baseChoice = next;
+    document.getElementById('baseModelBtn').classList.toggle('active', baseChoice === 'model');
+    document.getElementById('baseExpertBtn').classList.toggle('active', baseChoice === 'expert');
+    document.getElementById('baseExpertBtn').disabled = !args.expertClassImage;
+    const url = bgUrl();
+    if (url) bgImage.src = url;
+    if (clear) clearEdits(false);
+  }
+
+  function setCurrentClass(id){
+    currentClass = Number(id);
+    document.querySelectorAll('.tool-btn[data-class]').forEach(btn => btn.classList.toggle('active', Number(btn.dataset.class) === currentClass));
+    drawCursor(lastPoint);
+  }
+  function brushSize(){ return Math.max(1, Number(brush.value || 25)); }
+  function setBrushValue(v){
+    const min = Number(brush.min), max = Number(brush.max);
+    const next = Math.max(min, Math.min(max, Number(v || brush.value || 25)));
+    brush.value = String(next); brushValue.textContent = String(next); drawCursor(lastPoint);
+  }
+
+  function computeFit(){
+    const maxW = Math.max(200, shell.clientWidth - 2);
+    const maxH = Math.max(260, shell.clientHeight - 2);
+    const fit = Math.min(maxW / imageW, maxH / imageH, 1);
+    displayW = Math.max(1, Math.round(imageW * fit));
+    displayH = Math.max(1, Math.round(imageH * fit));
+    stage.style.setProperty('--stage-w', `${displayW}px`);
+    stage.style.setProperty('--stage-h', `${displayH}px`);
+    shell.style.setProperty('--viewport-h', `${Math.max(560, Math.min(window.innerHeight * .78, 900))}px`);
+  }
+  function applyTransform(){
+    const baseX = (shell.clientWidth - displayW * zoom) / 2;
+    const baseY = Math.max(0, (shell.clientHeight - displayH * zoom) / 2);
+    stage.style.transform = `translate(${baseX + panX}px, ${baseY + panY}px) scale(${zoom})`;
+    zoomInput.value = String(Math.round(zoom * 100));
+    zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+  }
+  function resetView(){ zoom = 1; panX = 0; panY = 0; computeFit(); applyTransform(); }
+  function oneToOne(){ zoom = Math.max(1, imageW / Math.max(1, displayW)); panX = 0; panY = 0; applyTransform(); }
+  function setZoom(next, anchor){
+    next = Math.max(.25, Math.min(5, Number(next || 1)));
+    if (anchor) {
+      const before = clientToImage(anchor.x, anchor.y);
+      zoom = next; applyTransform();
+      const after = clientToImage(anchor.x, anchor.y);
+      panX += (after.x - before.x) / Math.max(1, imageW) * displayW * zoom;
+      panY += (after.y - before.y) / Math.max(1, imageH) * displayH * zoom;
+    } else zoom = next;
+    applyTransform();
+  }
+
+  function resizeCanvases(){
+    [visibleCanvas, logicalCanvas, cursorCanvas].forEach(c => { c.width = imageW; c.height = imageH; });
+    visibleCtx.clearRect(0,0,imageW,imageH);
+    logicalCtx.clearRect(0,0,imageW,imageH);
+    cursorCtx.clearRect(0,0,imageW,imageH);
+  }
+  function loadImages(){
+    plainReady = false;
+    plainImage.onload = () => { plainReady = true; };
+    plainImage.src = args.originalImage || bgUrl();
+
+    return new Promise((resolve, reject) => {
+      bgImage.onload = () => {
+        imageW = bgImage.naturalWidth || bgImage.width || 640;
+        imageH = bgImage.naturalHeight || bgImage.height || 480;
+        resizeCanvases();
+        resetView();
+        resolve();
+      };
+      bgImage.onerror = () => reject(new Error('Не удалось загрузить изображение редактора'));
+      bgImage.src = bgUrl();
+    });
+  }
+
+  function clientToImage(x, y){
+    const rect = cursorCanvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(imageW, (x - rect.left) / Math.max(rect.width, 1) * imageW)),
+      y: Math.max(0, Math.min(imageH, (y - rect.top) / Math.max(rect.height, 1) * imageH))
+    };
+  }
+  function saveUndo(){
+    try { undoStack.push({visible: visibleCtx.getImageData(0,0,imageW,imageH), logical: logicalCtx.getImageData(0,0,imageW,imageH)}); } catch(_) {}
+    if (undoStack.length > 30) undoStack.shift();
+  }
+  function clearEdits(save=true){
+    if (save) saveUndo();
+    visibleCtx.clearRect(0,0,imageW,imageH);
+    logicalCtx.clearRect(0,0,imageW,imageH);
+    strokes = 0; updateStatus();
+  }
+  function undo(){
+    const item = undoStack.pop(); if (!item) return;
+    visibleCtx.putImageData(item.visible,0,0); logicalCtx.putImageData(item.logical,0,0);
+    strokes = Math.max(0, strokes - 1); updateStatus();
+  }
+  function plainPattern(){
+    if (!plainReady) return null;
+    try { return visibleCtx.createPattern(plainImage, 'no-repeat'); } catch(_) { return null; }
+  }
+  function drawStrokeSegment(ctx, p0, p1, color, size){
+    ctx.lineWidth = Math.max(1, Number(size)); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=color;
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+  }
+  function drawStrokeDot(ctx, p, color, size){
+    ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(.5, Number(size)/2),0,Math.PI*2); ctx.fill();
+  }
+  function drawSegment(p0,p1){
+    const size = brushSize();
+    const cls = CLASS_COLORS[currentClass];
+    // logical layer always stores exact class color; black with alpha means фон/ластик.
+    drawStrokeSegment(logicalCtx, p0, p1, `rgb(${cls.rgb[0]},${cls.rgb[1]},${cls.rgb[2]})`, size);
+    // visible layer: colored classes are shown; eraser is colorless and reveals original pixels.
+    if (currentClass === 0) {
+      const pattern = plainPattern();
+      visibleCtx.save();
+      visibleCtx.globalCompositeOperation = pattern ? 'source-over' : 'destination-out';
+      visibleCtx.strokeStyle = pattern || 'rgba(0,0,0,1)';
+      visibleCtx.lineWidth = size; visibleCtx.lineCap='round'; visibleCtx.lineJoin='round';
+      visibleCtx.beginPath(); visibleCtx.moveTo(p0.x,p0.y); visibleCtx.lineTo(p1.x,p1.y); visibleCtx.stroke();
+      visibleCtx.restore();
+    } else drawStrokeSegment(visibleCtx, p0, p1, cls.css, size);
+  }
+  function drawDot(p){
+    const size = brushSize();
+    const cls = CLASS_COLORS[currentClass];
+    drawStrokeDot(logicalCtx, p, `rgb(${cls.rgb[0]},${cls.rgb[1]},${cls.rgb[2]})`, size);
+    if (currentClass === 0) {
+      const pattern = plainPattern();
+      visibleCtx.save();
+      visibleCtx.globalCompositeOperation = pattern ? 'source-over' : 'destination-out';
+      visibleCtx.fillStyle = pattern || 'rgba(0,0,0,1)';
+      visibleCtx.beginPath(); visibleCtx.arc(p.x,p.y,Math.max(.5,size/2),0,Math.PI*2); visibleCtx.fill();
+      visibleCtx.restore();
+    } else drawStrokeDot(visibleCtx, p, cls.css, size);
+  }
+  function drawCursor(p){
+    cursorCtx.clearRect(0,0,imageW,imageH);
+    if (!p) return;
+    const r = brushSize()/2;
+    cursorCtx.save();
+    cursorCtx.lineWidth = Math.max(1, 2 / zoom);
+    cursorCtx.setLineDash(currentClass === 0 ? [4,4] : []);
+    cursorCtx.strokeStyle = currentClass === 0 ? 'rgba(255,255,255,.96)' : CLASS_COLORS[currentClass].css;
+    cursorCtx.beginPath(); cursorCtx.arc(p.x,p.y,r,0,Math.PI*2); cursorCtx.stroke();
+    cursorCtx.restore();
+  }
+
+  function pointerDown(e){
+    cursorCanvas.setPointerCapture(e.pointerId);
+    if (e.button === 1 || e.button === 2 || e.altKey || spaceDown) { panning = true; lastPan = {x:e.clientX, y:e.clientY}; e.preventDefault(); return; }
+    drawing = true; saveUndo(); lastPoint = clientToImage(e.clientX,e.clientY); drawDot(lastPoint); strokes += 1; updateStatus(); drawCursor(lastPoint);
+  }
+  function pointerMove(e){
+    const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+    const latest = events[events.length - 1] || e;
+
+    if (panning && lastPan) {
+      panX += latest.clientX - lastPan.x;
+      panY += latest.clientY - lastPan.y;
+      lastPan = {x:latest.clientX, y:latest.clientY};
+      applyTransform();
+      return;
+    }
+
+    if (!drawing) {
+      const p = clientToImage(latest.clientX, latest.clientY);
+      lastPoint = p;
+      drawCursor(p);
+      return;
+    }
+
+    for (const ev of events) {
+      const p = clientToImage(ev.clientX, ev.clientY);
+      if (lastPoint) drawSegment(lastPoint, p);
+      else drawDot(p);
+      lastPoint = p;
+    }
+    drawCursor(lastPoint);
+  }
+  function pointerUp(){ drawing=false; panning=false; lastPan=null; }
+  function pointerLeave(){ cursorCtx.clearRect(0,0,imageW,imageH); }
+
+  function fillSelect(id, values, selected){
+    const s = document.getElementById(id); s.innerHTML = '';
+    for (const v of values) { const o=document.createElement('option'); o.value=v; o.textContent=v; if(v===selected) o.selected=true; s.appendChild(o); }
+  }
+  function setDecision(value){
+    document.querySelectorAll('#decisionBtns button[data-decision]').forEach(btn => btn.classList.toggle('active', btn.dataset.decision === value));
+    document.getElementById('decisionBtns').dataset.value = value;
+  }
+  function initReview(){
+    const ctx = args.reviewContext || {};
+    const modelClass = ctx.model_class || '—';
+    document.getElementById('modelClass').textContent = modelClass;
+    document.getElementById('finalClass').textContent = ctx.final_class || modelClass || '—';
+    document.getElementById('talcPercent').textContent = formatPct(ctx.talc_percent_model);
+    const conf = Number(ctx.mean_confidence || 0);
+    document.getElementById('confidence').textContent = Number.isFinite(conf) && conf > 0 ? conf.toFixed(2) : '—';
+    const reason = String(ctx.review_reason || '');
+    const rr = document.getElementById('reviewReason');
+    rr.style.display = reason ? 'block' : 'none'; rr.textContent = reason ? `Причина проверки: ${reason}` : '';
+    const classes = args.oreClasses && args.oreClasses.length ? args.oreClasses : ['рядовая руда','труднообогатимая руда','оталькованная руда'];
+    fillSelect('expertClassSelect', classes, ctx.expert_class || ctx.model_class || classes[0] || '');
+    document.getElementById('maskQualitySelect').value = ctx.mask_quality || 'Маска корректная';
+    document.getElementById('expertComment').value = ctx.expert_comment || '';
+    setDecision(ctx.class_decision || 'Подтверждаю класс модели');
+  }
+  function reviewPayload(){
+    const decision = document.getElementById('decisionBtns').dataset.value || 'Подтверждаю класс модели';
+    return {
+      class_decision: decision,
+      expert_class: decision === 'Подтверждаю класс модели' ? ((args.reviewContext || {}).model_class || '') : (document.getElementById('expertClassSelect').value || ''),
+      mask_quality: document.getElementById('maskQualitySelect').value || 'Маска корректная',
+      expert_comment: document.getElementById('expertComment').value || '',
+      base_choice: baseChoice,
+    };
+  }
+  function submit(action){
+    Streamlit.setComponentValue({
+      action,
+      edit_mode: 'multiclass',
+      base_choice: baseChoice,
+      selected_class: currentClass,
+      edit_layer: logicalCanvas.toDataURL('image/png'),
+      // backward-compatible aliases for older Python decoders:
+      edit_image: logicalCanvas.toDataURL('image/png'),
+      image: logicalCanvas.toDataURL('image/png'),
+      submitted_at: new Date().toISOString(),
+      ...reviewPayload(),
+    });
+  }
+
+  document.querySelectorAll('.tool-btn[data-class]').forEach(btn => btn.addEventListener('click', () => setCurrentClass(Number(btn.dataset.class))));
+  brush.addEventListener('input', () => setBrushValue(brush.value));
+  zoomInput.addEventListener('input', () => setZoom(Number(zoomInput.value)/100));
+  document.getElementById('fitBtn').addEventListener('click', resetView);
+  document.getElementById('oneToOneBtn').addEventListener('click', oneToOne);
+  document.getElementById('zoomMinusBtn').addEventListener('click', () => setZoom(zoom/1.25));
+  document.getElementById('zoomPlusBtn').addEventListener('click', () => setZoom(zoom*1.25));
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('clearBtn').addEventListener('click', () => clearEdits(true));
+  document.getElementById('applyBtn').addEventListener('click', () => submit('apply'));
+  document.getElementById('saveBtn').addEventListener('click', () => submit('save'));
+  document.getElementById('baseModelBtn').addEventListener('click', () => setBaseChoice('model', true));
+  document.getElementById('baseExpertBtn').addEventListener('click', () => setBaseChoice('expert', true));
+  document.getElementById('decisionBtns').addEventListener('click', e => { const b=e.target.closest('button[data-decision]'); if(b) setDecision(b.dataset.decision); });
+  cursorCanvas.addEventListener('pointerdown', pointerDown);
+  cursorCanvas.addEventListener('pointermove', pointerMove);
+  cursorCanvas.addEventListener('pointerup', pointerUp);
+  cursorCanvas.addEventListener('pointercancel', pointerUp);
+  cursorCanvas.addEventListener('pointerleave', pointerLeave);
+  cursorCanvas.addEventListener('contextmenu', e => e.preventDefault());
+  shell.addEventListener('wheel', e => { e.preventDefault(); const factor=Math.exp(-e.deltaY*.0012); setZoom(zoom*factor, {x:e.clientX,y:e.clientY}); }, {passive:false});
+  window.addEventListener('resize', () => { computeFit(); applyTransform(); setHeight(); });
+  window.addEventListener('keydown', e => {
+    if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+    const k = e.key.toLowerCase();
+    if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
+    if (e.key === '1') setCurrentClass(1);
+    if (e.key === '2') setCurrentClass(2);
+    if (e.key === '3') setCurrentClass(3);
+    if (e.key === '0' || k === 'e' || k === 'у') setCurrentClass(0);
+    if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); }
+    if (e.key === '[' || e.key === 'х') setBrushValue(Number(brush.value) - 3);
+    if (e.key === ']' || e.key === 'ъ') setBrushValue(Number(brush.value) + 3);
+    if (e.key === '-' || e.key === '_') setZoom(zoom/1.2);
+    if (e.key === '+' || e.key === '=') setZoom(zoom*1.2);
+  });
+  window.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+  async function render(newArgs){
+    args = newArgs || {};
+    loader.style.display = 'block'; content.classList.remove('ready');
+    setBrushValue(25); setCurrentClass(3); initReview();
+    baseChoice = args.initialBaseChoice || 'model';
+    document.getElementById('baseExpertBtn').style.display = args.expertClassImage ? 'inline-flex' : 'none';
+    setBaseChoice(baseChoice, false);
+    try {
+      await loadImages();
+      clearEdits(false); undoStack.length = 0; strokes = 0; updateStatus();
+      loader.style.display = 'none'; content.classList.add('ready'); setReady('готов'); setHeight();
+    } catch (err) {
+      loader.textContent = err && err.message ? err.message : 'Не удалось загрузить редактор.';
+      setHeight();
+    }
+  }
+
+  window.addEventListener('message', event => {
+    const msg = event.data;
+    if (!msg || msg.type !== 'streamlit:render') return;
+    const payload = (msg.args && msg.args.args) || msg.args || {};
+    render(payload);
+  });
+  Streamlit.ready();
+  Streamlit.setFrameHeight(980);
+  setHeight();
+})();
+</script>
+</body>
+</html>

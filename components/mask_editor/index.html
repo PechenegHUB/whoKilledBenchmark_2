@@ -1,0 +1,1277 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1117;
+      --panel: #151a23;
+      --panel-2: #1d2430;
+      --text: #f3f6fa;
+      --muted: rgba(243, 246, 250, 0.68);
+      --border: rgba(255, 255, 255, 0.13);
+      --blue: #0060ff;
+      --red: #ff2d2d;
+      --green: #20c997;
+      --warning: #f59f00;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .editor {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      padding: 10px 4px 2px 4px;
+      overflow: hidden;
+    }
+
+    .review-panel {
+      display: grid;
+      grid-template-columns: minmax(250px, 0.95fr) minmax(380px, 1.35fr) minmax(280px, 1fr);
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 10px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(170px, 0.8fr) minmax(220px, 1fr) minmax(260px, 1.05fr) minmax(300px, 1.35fr);
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 10px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      min-height: 54px;
+      box-sizing: border-box;
+    }
+
+    .label {
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 7px;
+      color: var(--text);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .metric-box {
+      border: 1px solid rgba(255,255,255,0.11);
+      border-radius: 10px;
+      padding: 8px 9px;
+      background: rgba(255,255,255,0.035);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+
+    .metric-value {
+      font-size: 16px;
+      font-weight: 850;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .notice {
+      margin-top: 8px;
+      border: 1px solid rgba(245,159,0,0.35);
+      border-radius: 10px;
+      padding: 7px 9px;
+      color: #ffe0a3;
+      background: rgba(245,159,0,0.10);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .segmented, .actions, .base-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .mode-btn, .action-btn, .base-btn, .mini-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 750;
+      font-size: 13px;
+      line-height: 1;
+      white-space: nowrap;
+      position: relative;
+      min-height: 31px;
+    }
+
+    .mini-btn {
+      padding: 7px 9px;
+      min-height: 28px;
+      font-size: 12px;
+    }
+
+    .mode-btn.active.add, .base-btn.active, .mini-btn.active {
+      border-color: rgba(0, 96, 255, 0.95);
+      box-shadow: 0 0 0 2px rgba(0, 96, 255, 0.22) inset;
+    }
+
+    .mode-btn.active.remove {
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12) inset;
+    }
+
+    .action-btn:hover, .mode-btn:hover, .base-btn:hover, .mini-btn:hover {
+      background: #263041;
+    }
+
+    .action-btn:disabled {
+      cursor: wait;
+      opacity: 0.78;
+    }
+
+    .action-btn.primary {
+      background: #ff4b4b;
+      border-color: #ff4b4b;
+      color: white;
+    }
+
+    .action-btn.save {
+      background: #178f63;
+      border-color: #19a974;
+      color: white;
+    }
+
+    .action-btn.ghost, .mini-btn.ghost {
+      background: transparent;
+    }
+
+    .action-btn.busy::after {
+      content: "";
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-left: 7px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.45);
+      border-top-color: white;
+      vertical-align: -2px;
+      animation: spin 0.75s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(160px, 0.7fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(12, 16, 23, 0.95);
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+
+    select {
+      padding: 8px 9px;
+      min-height: 34px;
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+      padding: 9px 10px;
+      line-height: 1.35;
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr 58px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #ff4b4b;
+    }
+
+    .value-pill {
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-weight: 800;
+      background: rgba(255,255,255,0.05);
+      font-size: 13px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 7px;
+      line-height: 1.35;
+    }
+
+    .stage-shell {
+      width: 100%;
+      max-width: 100%;
+      height: var(--viewport-h, 480px);
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background:
+        radial-gradient(circle at center, rgba(255,255,255,0.05), transparent 55%),
+        #090c12;
+      touch-action: none;
+      contain: layout paint size;
+    }
+
+    .stage-shell.panning { cursor: grabbing; }
+
+    .stage {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: var(--stage-w, 640px);
+      height: var(--stage-h, 480px);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #05070a;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.25);
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    #bgImage {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: fill;
+      z-index: 1;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: auto;
+    }
+
+    #cursorCanvas { cursor: none; z-index: 3; }
+    #editCanvas { z-index: 2; pointer-events: none; }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status strong { color: var(--text); }
+
+    .loader {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+    }
+
+    .worker-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--warning);
+      display: inline-block;
+    }
+
+    .dot.ok { background: var(--green); }
+    .dot.warn { background: var(--warning); }
+    .soft-red { color: #ffb4b4; }
+
+    @media (max-width: 1100px) {
+      .review-panel, .toolbar { grid-template-columns: 1fr; }
+      .input-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="editor">
+    <div id="loader" class="loader">⏳ Загружаем экспертный редактор…</div>
+
+    <div id="content" style="display:none;">
+      <div class="review-panel">
+        <div class="card">
+          <div class="label">Экспертная оценка класса</div>
+          <div class="metrics-grid">
+            <div class="metric-box"><div class="metric-label">Класс модели</div><div id="modelClass" class="metric-value">—</div></div>
+            <div class="metric-box"><div class="metric-label">Финальный класс</div><div id="finalClass" class="metric-value">—</div></div>
+            <div class="metric-box"><div class="metric-label">Доля талька</div><div id="talcPercent" class="metric-value">—</div></div>
+            <div class="metric-box"><div class="metric-label">Уверенность</div><div id="confidence" class="metric-value">—</div></div>
+          </div>
+          <div id="reviewReason" class="notice" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+          <div class="label">Решение эксперта</div>
+          <div id="decisionBtns" class="segmented">
+            <button data-decision="Подтверждаю класс модели" class="mini-btn active" type="button">Подтверждаю класс</button>
+            <button data-decision="Класс неверный" class="mini-btn" type="button">Класс неверный</button>
+            <button data-decision="Не уверен / нужна проверка" class="mini-btn" type="button">Не уверен</button>
+          </div>
+          <div class="input-row">
+            <div>
+              <div class="hint" style="margin-top:8px; margin-bottom:5px;">Правильный класс, если модель ошиблась</div>
+              <select id="expertClassSelect"></select>
+            </div>
+            <div>
+              <div class="hint" style="margin-top:8px; margin-bottom:5px;">Качество маски</div>
+              <select id="maskQualitySelect">
+                <option>Маска корректная</option>
+                <option>Частично корректная</option>
+                <option>Маска неверная</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label">Комментарий эксперта</div>
+          <textarea id="expertComment" placeholder="Например: модель захватила царапины как тальк; нужно добавить зону в правом нижнем углу..."></textarea>
+          <div class="hint">Этот блок теперь работает локально в браузере и не вызывает rerun Streamlit при вводе.</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="card">
+          <div class="label">Инструмент</div>
+          <div class="segmented">
+            <button id="addBtn" class="mode-btn add active" type="button">Кисть: добавить</button>
+            <button id="removeBtn" class="mode-btn remove" type="button">Ластик</button>
+          </div>
+          <div class="hint">B — добавить, E — ластик. Удаление выглядит как стирание, но сохраняется как правка.</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Размер кисти</div>
+          <div class="range-row">
+            <input id="brush" type="range" min="5" max="90" step="1" value="25" />
+            <div id="brushValue" class="value-pill">25</div>
+          </div>
+          <div class="hint">[ и ] меняют размер. Курсор и кисть обновляются локально.</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Масштаб фотографии</div>
+          <div class="range-row">
+            <input id="zoom" type="range" min="25" max="500" step="5" value="100" />
+            <div id="zoomValue" class="value-pill">100%</div>
+          </div>
+          <div class="actions" style="margin-top:8px;">
+            <button id="fitBtn" class="mini-btn ghost" type="button">По размеру</button>
+            <button id="oneToOneBtn" class="mini-btn ghost" type="button">1:1</button>
+            <button id="zoomMinusBtn" class="mini-btn ghost" type="button">−</button>
+            <button id="zoomPlusBtn" class="mini-btn ghost" type="button">+</button>
+          </div>
+          <div class="hint">Колесо — zoom к курсору. Space/средняя кнопка — перемещение.</div>
+        </div>
+
+        <div class="card">
+          <div class="label">База и передача результата</div>
+          <div id="baseChoices" class="base-row" style="margin-bottom:8px;">
+            <button id="baseModelBtn" class="base-btn active" type="button">Маска модели</button>
+            <button id="baseExpertBtn" class="base-btn" type="button">Текущая экспертная маска</button>
+          </div>
+          <div class="actions">
+            <button id="undoBtn" class="action-btn ghost" type="button">↶ Отменить</button>
+            <button id="clearBtn" class="action-btn ghost" type="button">Очистить мазки</button>
+            <button id="applyBtn" class="action-btn primary" type="button">✅ Применить правку</button>
+            <button id="saveBtn" class="action-btn save" type="button">💾 Передать и сохранить</button>
+          </div>
+          <div class="hint">Python получает результат только после apply/save.</div>
+        </div>
+      </div>
+
+      <div id="stageShell" class="stage-shell">
+        <div id="stage" class="stage">
+          <img id="bgImage" alt="Редактируемое изображение" />
+          <canvas id="editCanvas"></canvas>
+          <canvas id="cursorCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="status">
+        <span id="strokeStatus">Мазков: 0</span>
+        <span id="engineStatus" class="worker-pill"><i class="dot warn"></i><strong>инициализация</strong></span>
+        <span><span style="color:#8eb8ff;">Синий</span> — добавлено, ластик стирает маску без красной линии</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const Streamlit = {
+      ready: () => window.parent.postMessage({isStreamlitMessage: true, type: 'streamlit:componentReady', apiVersion: 1}, '*'),
+      setFrameHeight: (height) => window.parent.postMessage({isStreamlitMessage: true, type: 'streamlit:setFrameHeight', height: height}, '*'),
+      setComponentValue: (value) => window.parent.postMessage({isStreamlitMessage: true, type: 'streamlit:setComponentValue', value: value, dataType: 'json'}, '*')
+    };
+
+    const editor = document.querySelector('.editor');
+    const loader = document.getElementById('loader');
+    const content = document.getElementById('content');
+    const stageShell = document.getElementById('stageShell');
+    const stage = document.getElementById('stage');
+    const bgImage = document.getElementById('bgImage');
+    const editCanvas = document.getElementById('editCanvas');
+    const cursorCanvas = document.getElementById('cursorCanvas');
+    const editCtx = editCanvas.getContext('2d', {alpha: true, desynchronized: true});
+    const cursorCtx = cursorCanvas.getContext('2d', {alpha: true});
+    const addBtn = document.getElementById('addBtn');
+    const removeBtn = document.getElementById('removeBtn');
+    const brush = document.getElementById('brush');
+    const brushValue = document.getElementById('brushValue');
+    const zoomInput = document.getElementById('zoom');
+    const zoomValue = document.getElementById('zoomValue');
+    const fitBtn = document.getElementById('fitBtn');
+    const oneToOneBtn = document.getElementById('oneToOneBtn');
+    const zoomMinusBtn = document.getElementById('zoomMinusBtn');
+    const zoomPlusBtn = document.getElementById('zoomPlusBtn');
+    const undoBtn = document.getElementById('undoBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const applyBtn = document.getElementById('applyBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const baseModelBtn = document.getElementById('baseModelBtn');
+    const baseExpertBtn = document.getElementById('baseExpertBtn');
+    const strokeStatus = document.getElementById('strokeStatus');
+    const engineStatus = document.getElementById('engineStatus');
+    const modelClassEl = document.getElementById('modelClass');
+    const finalClassEl = document.getElementById('finalClass');
+    const talcPercentEl = document.getElementById('talcPercent');
+    const confidenceEl = document.getElementById('confidence');
+    const reviewReasonEl = document.getElementById('reviewReason');
+    const decisionBtns = document.getElementById('decisionBtns');
+    const expertClassSelect = document.getElementById('expertClassSelect');
+    const maskQualitySelect = document.getElementById('maskQualitySelect');
+    const expertComment = document.getElementById('expertComment');
+
+    let args = null;
+    let mode = 'add';
+    let activePointerId = null;
+    let isDrawing = false;
+    let isPanning = false;
+    let spaceDown = false;
+    let panStart = null;
+    let addColor = '#0060FF';
+    let removeColor = '#FF2D2D';
+    let currentWidth = 640;
+    let currentHeight = 480;
+    let displayWidth = 640;
+    let displayHeight = 480;
+    let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let lastRenderKey = null;
+    let lastBackgroundKey = null;
+    let lastSentFrameHeight = 0;
+    let frameHeightRaf = 0;
+    let layoutRaf = 0;
+    let lastLayoutWidth = 0;
+    let worker = null;
+    let usingWorker = false;
+    let fallback = null;
+    let busyButton = null;
+    let lastCursorPoint = null;
+    let plainImage = new Image();
+    let plainImageReady = false;
+    let currentBaseChoice = 'model';
+    let reviewDecision = 'Подтверждаю класс модели';
+    let backgroundOptions = {model: '', expert: ''};
+
+    function setStableFrameHeight(force = false) {
+      if (frameHeightRaf) cancelAnimationFrame(frameHeightRaf);
+      frameHeightRaf = requestAnimationFrame(() => {
+        frameHeightRaf = 0;
+        const rect = editor.getBoundingClientRect();
+        const h = Math.ceil(rect.height + 6);
+        if (force || Math.abs(h - lastSentFrameHeight) > 2) {
+          lastSentFrameHeight = h;
+          Streamlit.setFrameHeight(h);
+        }
+      });
+    }
+
+    function formatPct(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return String(v || '—');
+      return `${n.toFixed(2)}%`;
+    }
+
+    function formatNum(v, digits = 2) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return String(v || '—');
+      return n.toFixed(digits);
+    }
+
+    function computeStageSize() {
+      const shellRect = stageShell.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth || currentWidth;
+      const availableWidth = Math.max(260, Math.floor(shellRect.width || viewportWidth));
+      const naturalWidth = Math.max(1, Number(currentWidth || 640));
+      const naturalHeight = Math.max(1, Number(currentHeight || 480));
+      const width = Math.max(1, Math.min(availableWidth, naturalWidth));
+      const height = Math.max(1, Math.round(width * naturalHeight / naturalWidth));
+      return {width, height};
+    }
+
+    function clampZoom(value) {
+      return Math.max(0.25, Math.min(5, Number(value || 1)));
+    }
+
+    function applyStageTransform() {
+      const shellW = Math.max(1, stageShell.clientWidth || displayWidth);
+      const shellH = Math.max(1, stageShell.clientHeight || displayHeight);
+      const baseX = (shellW - displayWidth * zoom) / 2;
+      const baseY = Math.max(0, (shellH - displayHeight * zoom) / 2);
+      stage.style.transform = `translate(${baseX + panX}px, ${baseY + panY}px) scale(${zoom})`;
+      zoomInput.value = String(Math.round(zoom * 100));
+      zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+      redrawCursor();
+    }
+
+    function applyStageLayout(force = false) {
+      if (layoutRaf) cancelAnimationFrame(layoutRaf);
+      layoutRaf = requestAnimationFrame(() => {
+        layoutRaf = 0;
+        const shellRect = stageShell.getBoundingClientRect();
+        const shellWidth = Math.round(shellRect.width || document.documentElement.clientWidth || window.innerWidth || currentWidth);
+        if (!force && shellWidth === lastLayoutWidth) {
+          setStableFrameHeight(false);
+          return;
+        }
+        lastLayoutWidth = shellWidth;
+        const size = computeStageSize();
+        displayWidth = size.width;
+        displayHeight = size.height;
+        stage.style.setProperty('--stage-w', `${displayWidth}px`);
+        stage.style.setProperty('--stage-h', `${displayHeight}px`);
+        stageShell.style.setProperty('--viewport-h', `${displayHeight}px`);
+        applyStageTransform();
+        setStableFrameHeight(true);
+      });
+    }
+
+    function setEngineStatus(text, ok) {
+      const dot = engineStatus.querySelector('.dot');
+      const strong = engineStatus.querySelector('strong');
+      strong.textContent = text;
+      dot.classList.toggle('ok', Boolean(ok));
+      dot.classList.toggle('warn', !ok);
+    }
+
+    function setBusy(button, isBusy) {
+      if (button) button.classList.toggle('busy', isBusy);
+      applyBtn.disabled = isBusy;
+      saveBtn.disabled = isBusy;
+      undoBtn.disabled = isBusy;
+      clearBtn.disabled = isBusy;
+      busyButton = isBusy ? button : null;
+    }
+
+    function updateStatus(strokeCount) {
+      strokeStatus.textContent = `Мазков: ${Number(strokeCount || 0)}`;
+    }
+
+    function setMode(nextMode) {
+      mode = nextMode === 'remove' ? 'remove' : 'add';
+      addBtn.classList.toggle('active', mode === 'add');
+      removeBtn.classList.toggle('active', mode === 'remove');
+      redrawCursor();
+    }
+
+    function clampBrush(value) {
+      const min = Number(brush.min || 5);
+      const max = Number(brush.max || 90);
+      return Math.max(min, Math.min(max, Number(value || brush.value || 25)));
+    }
+
+    function setBrushValue(value) {
+      const next = clampBrush(value);
+      brush.value = String(next);
+      brushValue.textContent = String(next);
+      redrawCursor();
+    }
+
+    function setZoom(nextZoom, anchorClient = null) {
+      const next = clampZoom(nextZoom);
+      if (anchorClient) {
+        const point = eventToPoint({clientX: anchorClient.x, clientY: anchorClient.y});
+        const shellRect = stageShell.getBoundingClientRect();
+        zoom = next;
+        const baseX = (stageShell.clientWidth - displayWidth * zoom) / 2;
+        const baseY = Math.max(0, (stageShell.clientHeight - displayHeight * zoom) / 2);
+        const targetX = anchorClient.x - shellRect.left;
+        const targetY = anchorClient.y - shellRect.top;
+        panX = targetX - baseX - (point.x / currentWidth) * displayWidth * zoom;
+        panY = targetY - baseY - (point.y / currentHeight) * displayHeight * zoom;
+      } else {
+        zoom = next;
+      }
+      applyStageTransform();
+    }
+
+    function resetView() {
+      zoom = 1;
+      panX = 0;
+      panY = 0;
+      applyStageTransform();
+    }
+
+    function oneToOneView() {
+      const next = Math.max(1, currentWidth / Math.max(1, displayWidth));
+      zoom = clampZoom(next);
+      panX = 0;
+      panY = 0;
+      applyStageTransform();
+    }
+
+    function resizeVisibleCanvases(width, height) {
+      currentWidth = Number(width || 640);
+      currentHeight = Number(height || 480);
+      cursorCanvas.width = currentWidth;
+      cursorCanvas.height = currentHeight;
+      editCanvas.width = currentWidth;
+      editCanvas.height = currentHeight;
+      applyStageLayout(true);
+    }
+
+    function eventToPoint(event) {
+      const rect = cursorCanvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(currentWidth, (event.clientX - rect.left) * currentWidth / Math.max(1, rect.width))),
+        y: Math.max(0, Math.min(currentHeight, (event.clientY - rect.top) * currentHeight / Math.max(1, rect.height))),
+      };
+    }
+
+    function clearCursor() {
+      cursorCtx.clearRect(0, 0, currentWidth, currentHeight);
+    }
+
+    function redrawCursor() {
+      clearCursor();
+      if (!lastCursorPoint || isPanning) return;
+      const radius = Number(brush.value || 25) / 2;
+      cursorCtx.save();
+      cursorCtx.strokeStyle = mode === 'add' ? addColor : 'rgba(255,255,255,0.95)';
+      cursorCtx.lineWidth = 2;
+      cursorCtx.setLineDash(mode === 'add' ? [6, 4] : [3, 4]);
+      cursorCtx.beginPath();
+      cursorCtx.arc(lastCursorPoint.x, lastCursorPoint.y, radius, 0, Math.PI * 2);
+      cursorCtx.stroke();
+      if (mode === 'remove') {
+        cursorCtx.strokeStyle = 'rgba(255, 80, 80, 0.85)';
+        cursorCtx.lineWidth = 1;
+        cursorCtx.setLineDash([]);
+        cursorCtx.beginPath();
+        cursorCtx.moveTo(lastCursorPoint.x - radius * 0.45, lastCursorPoint.y + radius * 0.45);
+        cursorCtx.lineTo(lastCursorPoint.x + radius * 0.45, lastCursorPoint.y - radius * 0.45);
+        cursorCtx.stroke();
+      }
+      cursorCtx.restore();
+    }
+
+    function loadImageElement(img, src) {
+      return new Promise((resolve, reject) => {
+        if (!src) reject(new Error('Пустой URL изображения.'));
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Не удалось загрузить изображение для редактора.'));
+        img.src = src;
+      });
+    }
+
+    function loadPlainImage(src) {
+      plainImageReady = false;
+      return new Promise((resolve) => {
+        plainImage.onload = () => { plainImageReady = true; resolve(true); };
+        plainImage.onerror = () => { plainImageReady = false; resolve(false); };
+        plainImage.src = src || '';
+      });
+    }
+
+    function strokeColor(stroke) {
+      return stroke && stroke.mode === 'remove' ? removeColor : addColor;
+    }
+
+    function initFallback() {
+      const exportCanvas = document.createElement('canvas');
+      const exportCtx = exportCanvas.getContext('2d', {alpha: true, desynchronized: true});
+      const state = {strokes: [], activeStroke: null};
+
+      function resetCanvas() {
+        exportCanvas.width = currentWidth;
+        exportCanvas.height = currentHeight;
+        exportCtx.clearRect(0, 0, currentWidth, currentHeight);
+      }
+
+      function drawSegment(stroke, p0, p1) {
+        exportCtx.save();
+        exportCtx.globalCompositeOperation = 'source-over';
+        exportCtx.strokeStyle = strokeColor(stroke);
+        exportCtx.lineWidth = Math.max(1, Number(stroke.size || 1));
+        exportCtx.lineCap = 'round';
+        exportCtx.lineJoin = 'round';
+        exportCtx.beginPath();
+        exportCtx.moveTo(p0.x, p0.y);
+        exportCtx.lineTo(p1.x, p1.y);
+        exportCtx.stroke();
+        exportCtx.restore();
+      }
+
+      function drawDot(stroke, p) {
+        exportCtx.save();
+        exportCtx.fillStyle = strokeColor(stroke);
+        exportCtx.beginPath();
+        exportCtx.arc(p.x, p.y, Math.max(0.5, Number(stroke.size || 1) / 2), 0, Math.PI * 2);
+        exportCtx.fill();
+        exportCtx.restore();
+      }
+
+      function redrawAll() {
+        resetCanvas();
+        for (const stroke of state.strokes) {
+          if (!stroke.points || stroke.points.length === 0) continue;
+          if (stroke.points.length === 1) drawDot(stroke, stroke.points[0]);
+          for (let i = 1; i < stroke.points.length; i += 1) drawSegment(stroke, stroke.points[i - 1], stroke.points[i]);
+        }
+        updateStatus(state.strokes.length);
+      }
+
+      return {
+        reset() { state.strokes = []; state.activeStroke = null; resetCanvas(); updateStatus(0); },
+        begin(point, size, strokeMode) { state.activeStroke = {mode: strokeMode, size, points: [point]}; drawDot(state.activeStroke, point); },
+        move(point) {
+          if (!state.activeStroke) return;
+          const prev = state.activeStroke.points[state.activeStroke.points.length - 1];
+          state.activeStroke.points.push(point);
+          drawSegment(state.activeStroke, prev, point);
+        },
+        end(point) {
+          if (!state.activeStroke) return;
+          if (point) {
+            const prev = state.activeStroke.points[state.activeStroke.points.length - 1];
+            const dx = point.x - prev.x;
+            const dy = point.y - prev.y;
+            if ((dx * dx + dy * dy) > 0.25) {
+              state.activeStroke.points.push(point);
+              drawSegment(state.activeStroke, prev, point);
+            }
+          }
+          state.strokes.push(state.activeStroke);
+          state.activeStroke = null;
+          updateStatus(state.strokes.length);
+        },
+        undo() { state.activeStroke = null; state.strokes.pop(); redrawAll(); },
+        clear() { state.activeStroke = null; state.strokes = []; resetCanvas(); updateStatus(0); },
+        export(action) {
+          return {action, edit_image: exportCanvas.toDataURL('image/png'), width: currentWidth, height: currentHeight, strokes: state.strokes.length, submitted_at: Date.now()};
+        },
+      };
+    }
+
+    const visibleState = {strokes: [], activeStroke: null};
+
+    function clearVisibleCanvas() {
+      editCtx.clearRect(0, 0, currentWidth, currentHeight);
+    }
+
+    function pathForSegment(ctx, stroke, p0, p1) {
+      ctx.lineWidth = Math.max(1, Number(stroke.size || 1));
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+    }
+
+    function plainPattern() {
+      if (!plainImageReady) return null;
+      try {
+        return editCtx.createPattern(plainImage, 'no-repeat');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function drawVisibleEraseSegment(stroke, p0, p1) {
+      const pattern = plainPattern();
+      editCtx.save();
+      editCtx.globalCompositeOperation = pattern ? 'source-over' : 'destination-out';
+      editCtx.strokeStyle = pattern || 'rgba(0,0,0,1)';
+      editCtx.lineWidth = Math.max(1, Number(stroke.size || 1));
+      editCtx.lineCap = 'round';
+      editCtx.lineJoin = 'round';
+      editCtx.beginPath();
+      editCtx.moveTo(p0.x, p0.y);
+      editCtx.lineTo(p1.x, p1.y);
+      editCtx.stroke();
+      editCtx.restore();
+    }
+
+    function drawVisibleEraseDot(stroke, p) {
+      const r = Math.max(0.5, Number(stroke.size || 1) / 2);
+      const pattern = plainPattern();
+      editCtx.save();
+      editCtx.globalCompositeOperation = pattern ? 'source-over' : 'destination-out';
+      editCtx.fillStyle = pattern || 'rgba(0,0,0,1)';
+      editCtx.beginPath();
+      editCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      editCtx.fill();
+      editCtx.restore();
+    }
+
+    function drawVisibleSegment(stroke, p0, p1) {
+      if (!stroke || !p0 || !p1) return;
+      if (stroke.mode === 'remove') {
+        drawVisibleEraseSegment(stroke, p0, p1);
+        return;
+      }
+      editCtx.save();
+      editCtx.globalCompositeOperation = 'source-over';
+      editCtx.strokeStyle = addColor;
+      editCtx.lineWidth = Math.max(1, Number(stroke.size || 1));
+      editCtx.lineCap = 'round';
+      editCtx.lineJoin = 'round';
+      editCtx.beginPath();
+      editCtx.moveTo(p0.x, p0.y);
+      editCtx.lineTo(p1.x, p1.y);
+      editCtx.stroke();
+      editCtx.restore();
+    }
+
+    function drawVisibleDot(stroke, p) {
+      if (!stroke || !p) return;
+      if (stroke.mode === 'remove') {
+        drawVisibleEraseDot(stroke, p);
+        return;
+      }
+      editCtx.save();
+      editCtx.globalCompositeOperation = 'source-over';
+      editCtx.fillStyle = addColor;
+      editCtx.beginPath();
+      editCtx.arc(p.x, p.y, Math.max(0.5, Number(stroke.size || 1) / 2), 0, Math.PI * 2);
+      editCtx.fill();
+      editCtx.restore();
+    }
+
+    function redrawVisibleAll() {
+      clearVisibleCanvas();
+      for (const stroke of visibleState.strokes) {
+        if (!stroke.points || stroke.points.length === 0) continue;
+        if (stroke.points.length === 1) {
+          drawVisibleDot(stroke, stroke.points[0]);
+          continue;
+        }
+        for (let i = 1; i < stroke.points.length; i += 1) drawVisibleSegment(stroke, stroke.points[i - 1], stroke.points[i]);
+      }
+      updateStatus(visibleState.strokes.length);
+    }
+
+    function visibleBegin(point, size, strokeMode) {
+      visibleState.activeStroke = {mode: strokeMode === 'remove' ? 'remove' : 'add', size, points: [point]};
+      drawVisibleDot(visibleState.activeStroke, point);
+    }
+
+    function visibleMove(point) {
+      if (!visibleState.activeStroke) return;
+      const prev = visibleState.activeStroke.points[visibleState.activeStroke.points.length - 1];
+      visibleState.activeStroke.points.push(point);
+      drawVisibleSegment(visibleState.activeStroke, prev, point);
+    }
+
+    function visibleEnd(point) {
+      if (!visibleState.activeStroke) return;
+      if (point) {
+        const prev = visibleState.activeStroke.points[visibleState.activeStroke.points.length - 1];
+        const dx = point.x - prev.x;
+        const dy = point.y - prev.y;
+        if ((dx * dx + dy * dy) > 0.25) {
+          visibleState.activeStroke.points.push(point);
+          drawVisibleSegment(visibleState.activeStroke, prev, point);
+        }
+      }
+      visibleState.strokes.push(visibleState.activeStroke);
+      visibleState.activeStroke = null;
+      updateStatus(visibleState.strokes.length);
+    }
+
+    function visibleUndo() { visibleState.activeStroke = null; visibleState.strokes.pop(); redrawVisibleAll(); }
+    function visibleClear() { visibleState.activeStroke = null; visibleState.strokes = []; clearVisibleCanvas(); updateStatus(0); }
+
+    function initWorkerIfPossible() {
+      if (worker) return true;
+      if (!window.Worker || !window.OffscreenCanvas) {
+        usingWorker = false;
+        fallback = initFallback();
+        fallback.reset();
+        setEngineStatus('fallback canvas', false);
+        return false;
+      }
+      try {
+        worker = new Worker('./mask_worker.js?v=5');
+        worker.onmessage = (event) => {
+          const msg = event.data || {};
+          if (msg.type === 'ready') {
+            usingWorker = true;
+            setEngineStatus('worker + OffscreenCanvas', true);
+          } else if (msg.type === 'status') {
+            updateStatus(msg.strokes);
+          } else if (msg.type === 'exported') {
+            setBusy(busyButton, false);
+            Streamlit.setComponentValue({...msg, ...collectReviewPayload()});
+          } else if (msg.type === 'error') {
+            setBusy(busyButton, false);
+            setEngineStatus('worker error', false);
+            console.error('Mask editor worker error:', msg.message);
+          }
+        };
+        worker.onerror = (event) => {
+          setBusy(busyButton, false);
+          setEngineStatus('worker error', false);
+          console.error('Mask editor worker failed:', event.message || event);
+        };
+        worker.postMessage({type: 'init', width: currentWidth, height: currentHeight, addColor, removeColor});
+        setEngineStatus('worker стартует', false);
+        return true;
+      } catch (error) {
+        console.warn('Worker unavailable, fallback to main canvas:', error);
+        usingWorker = false;
+        fallback = initFallback();
+        fallback.reset();
+        setEngineStatus('fallback canvas', false);
+        return false;
+      }
+    }
+
+    function resetEditorState() {
+      isDrawing = false;
+      activePointerId = null;
+      lastCursorPoint = null;
+      clearCursor();
+      visibleClear();
+      if (worker && usingWorker) {
+        worker.postMessage({type: 'reset', width: currentWidth, height: currentHeight, addColor, removeColor});
+      } else if (fallback) {
+        fallback.reset();
+      }
+      updateStatus(0);
+    }
+
+    function updateVisibleForMessage(message) {
+      if (message.type === 'beginStroke') visibleBegin(message.point, message.size, message.mode);
+      if (message.type === 'addPoint') visibleMove(message.point);
+      if (message.type === 'endStroke') visibleEnd(message.point);
+      if (message.type === 'undo') visibleUndo();
+      if (message.type === 'clear') visibleClear();
+      if (message.type === 'setColors') redrawVisibleAll();
+    }
+
+    function sendToEngine(message) {
+      updateVisibleForMessage(message);
+      if (worker && usingWorker) {
+        worker.postMessage(message);
+        return;
+      }
+      if (!fallback) return;
+      if (message.type === 'beginStroke') fallback.begin(message.point, message.size, message.mode);
+      if (message.type === 'addPoint') fallback.move(message.point);
+      if (message.type === 'endStroke') fallback.end(message.point);
+      if (message.type === 'undo') fallback.undo();
+      if (message.type === 'clear') fallback.clear();
+      if (message.type === 'export') {
+        const payload = fallback.export(message.action || 'apply');
+        setBusy(busyButton, false);
+        Streamlit.setComponentValue({...payload, ...collectReviewPayload()});
+      }
+    }
+
+    function pointerDown(event) {
+      if (spaceDown || event.button === 1 || event.button === 2) {
+        event.preventDefault();
+        activePointerId = event.pointerId;
+        cursorCanvas.setPointerCapture(event.pointerId);
+        isPanning = true;
+        panStart = {x: event.clientX, y: event.clientY, panX, panY};
+        stageShell.classList.add('panning');
+        clearCursor();
+        return;
+      }
+      if (event.button !== 0) return;
+      event.preventDefault();
+      activePointerId = event.pointerId;
+      cursorCanvas.setPointerCapture(event.pointerId);
+      isDrawing = true;
+      const point = eventToPoint(event);
+      lastCursorPoint = point;
+      redrawCursor();
+      sendToEngine({type: 'beginStroke', point, mode, size: Number(brush.value || 25)});
+    }
+
+    function pointerMove(event) {
+      if (isPanning && activePointerId === event.pointerId && panStart) {
+        event.preventDefault();
+        panX = panStart.panX + (event.clientX - panStart.x);
+        panY = panStart.panY + (event.clientY - panStart.y);
+        applyStageTransform();
+        return;
+      }
+
+      const point = eventToPoint(event);
+      lastCursorPoint = point;
+      redrawCursor();
+      if (!isDrawing || activePointerId !== event.pointerId) return;
+      event.preventDefault();
+      sendToEngine({type: 'addPoint', point});
+    }
+
+    function pointerUp(event) {
+      if (isPanning && activePointerId === event.pointerId) {
+        event.preventDefault();
+        isPanning = false;
+        activePointerId = null;
+        panStart = null;
+        stageShell.classList.remove('panning');
+        redrawCursor();
+        return;
+      }
+      if (!isDrawing || activePointerId !== event.pointerId) return;
+      event.preventDefault();
+      const point = eventToPoint(event);
+      sendToEngine({type: 'endStroke', point});
+      isDrawing = false;
+      activePointerId = null;
+    }
+
+    function pointerLeave() {
+      if (isDrawing || isPanning) return;
+      lastCursorPoint = null;
+      clearCursor();
+    }
+
+    function submit(action, button) {
+      setBusy(button, true);
+      sendToEngine({type: 'export', action});
+    }
+
+    function setDecision(decision) {
+      reviewDecision = decision || 'Подтверждаю класс модели';
+      [...decisionBtns.querySelectorAll('button')].forEach((btn) => btn.classList.toggle('active', btn.dataset.decision === reviewDecision));
+      expertClassSelect.disabled = reviewDecision !== 'Класс неверный';
+      expertClassSelect.style.opacity = expertClassSelect.disabled ? '0.55' : '1';
+    }
+
+    function initReviewPanel(ctx, classes) {
+      const modelClass = ctx.model_class || '—';
+      modelClassEl.textContent = modelClass;
+      finalClassEl.textContent = ctx.final_class || modelClass || '—';
+      talcPercentEl.textContent = formatPct(ctx.talc_percent_model);
+      confidenceEl.textContent = formatNum(ctx.mean_confidence, 2);
+
+      if (ctx.needs_review && ctx.review_reason) {
+        reviewReasonEl.textContent = `Причина попадания в очередь: ${ctx.review_reason}`;
+        reviewReasonEl.style.display = 'block';
+      } else {
+        reviewReasonEl.style.display = 'none';
+      }
+
+      const opts = (classes && classes.length) ? classes : [modelClass].filter(Boolean);
+      expertClassSelect.innerHTML = '';
+      for (const item of opts) {
+        const opt = document.createElement('option');
+        opt.value = item;
+        opt.textContent = item;
+        expertClassSelect.appendChild(opt);
+      }
+      expertClassSelect.value = ctx.expert_class || modelClass || opts[0] || '';
+      maskQualitySelect.value = ctx.mask_quality || 'Маска корректная';
+      expertComment.value = ctx.expert_comment || '';
+      setDecision(ctx.class_decision || 'Подтверждаю класс модели');
+    }
+
+    function collectReviewPayload() {
+      return {
+        class_decision: reviewDecision,
+        expert_class: reviewDecision === 'Класс неверный' ? expertClassSelect.value : (reviewDecision === 'Подтверждаю класс модели' ? (args?.review_context?.model_class || '') : expertClassSelect.value || ''),
+        mask_quality: maskQualitySelect.value || 'Маска корректная',
+        expert_comment: expertComment.value || '',
+        base_choice: currentBaseChoice,
+      };
+    }
+
+    function setBaseChoice(choice, clearEdits = true) {
+      const next = choice === 'expert' && backgroundOptions.expert ? 'expert' : 'model';
+      if (next === currentBaseChoice && bgImage.src) return;
+      currentBaseChoice = next;
+      baseModelBtn.classList.toggle('active', currentBaseChoice === 'model');
+      baseExpertBtn.classList.toggle('active', currentBaseChoice === 'expert');
+      bgImage.src = currentBaseChoice === 'expert' ? backgroundOptions.expert : backgroundOptions.model;
+      if (clearEdits) sendToEngine({type: 'clear'});
+    }
+
+    async function render(newArgs) {
+      args = newArgs || {};
+      addColor = args.add_color || '#0060FF';
+      removeColor = args.remove_color || '#FF2D2D';
+      setBrushValue(args.default_brush || 25);
+
+      const width = Number(args.canvas_width || 640);
+      const height = Number(args.canvas_height || 480);
+      const signatureParts = [args.background_signature || args.background_url || '', args.expert_background_signature || '', args.original_signature || '', `${width}x${height}`];
+      const renderKey = signatureParts.join('|');
+      const shouldReset = renderKey !== lastRenderKey;
+      lastRenderKey = renderKey;
+
+      backgroundOptions = {
+        model: args.background_url || '',
+        expert: args.expert_background_url || '',
+      };
+      baseExpertBtn.style.display = args.has_expert_mask && backgroundOptions.expert ? 'inline-flex' : 'none';
+
+      resizeVisibleCanvases(width, height);
+      initWorkerIfPossible();
+      initReviewPanel(args.review_context || {}, args.ore_classes || []);
+
+      if (shouldReset) {
+        resetView();
+        resetEditorState();
+      } else if (worker && usingWorker) {
+        worker.postMessage({type: 'setColors', addColor, removeColor});
+        redrawVisibleAll();
+      }
+
+      try {
+        await loadPlainImage(args.original_url || args.background_url);
+        if (shouldReset || lastBackgroundKey !== renderKey) {
+          currentBaseChoice = '';
+          setBaseChoice(args.initial_base_choice || 'model', false);
+          lastBackgroundKey = renderKey;
+        }
+        loader.style.display = 'none';
+        content.style.display = 'block';
+        applyStageLayout(true);
+      } catch (error) {
+        loader.textContent = error && error.message ? error.message : 'Не удалось загрузить изображение для редактора.';
+        setStableFrameHeight(true);
+      }
+    }
+
+    addBtn.addEventListener('click', () => setMode('add'));
+    removeBtn.addEventListener('click', () => setMode('remove'));
+    brush.addEventListener('input', () => setBrushValue(brush.value));
+    zoomInput.addEventListener('input', () => setZoom(Number(zoomInput.value) / 100));
+    fitBtn.addEventListener('click', resetView);
+    oneToOneBtn.addEventListener('click', oneToOneView);
+    zoomMinusBtn.addEventListener('click', () => setZoom(zoom / 1.25));
+    zoomPlusBtn.addEventListener('click', () => setZoom(zoom * 1.25));
+    undoBtn.addEventListener('click', () => sendToEngine({type: 'undo'}));
+    clearBtn.addEventListener('click', () => sendToEngine({type: 'clear'}));
+    applyBtn.addEventListener('click', () => submit('apply', applyBtn));
+    saveBtn.addEventListener('click', () => submit('save', saveBtn));
+    baseModelBtn.addEventListener('click', () => setBaseChoice('model', true));
+    baseExpertBtn.addEventListener('click', () => setBaseChoice('expert', true));
+    decisionBtns.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-decision]');
+      if (btn) setDecision(btn.dataset.decision);
+    });
+
+    cursorCanvas.addEventListener('pointerdown', pointerDown);
+    cursorCanvas.addEventListener('pointermove', pointerMove);
+    cursorCanvas.addEventListener('pointerup', pointerUp);
+    cursorCanvas.addEventListener('pointercancel', pointerUp);
+    cursorCanvas.addEventListener('pointerleave', pointerLeave);
+    cursorCanvas.addEventListener('contextmenu', (event) => event.preventDefault());
+    stageShell.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const factor = Math.exp(-event.deltaY * 0.0012);
+      setZoom(zoom * factor, {x: event.clientX, y: event.clientY});
+    }, {passive: false});
+    window.addEventListener('resize', () => applyStageLayout(false));
+
+    window.addEventListener('keydown', (event) => {
+      if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+      if (event.code === 'Space') { spaceDown = true; event.preventDefault(); }
+      if (event.key === 'b' || event.key === 'B' || event.key === 'и' || event.key === 'И') setMode('add');
+      if (event.key === 'e' || event.key === 'E' || event.key === 'у' || event.key === 'У') setMode('remove');
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); sendToEngine({type: 'undo'}); }
+      if (event.key === '[' || event.key === 'х') setBrushValue(Number(brush.value) - 3);
+      if (event.key === ']' || event.key === 'ъ') setBrushValue(Number(brush.value) + 3);
+      if (event.key === '-' || event.key === '_') setZoom(zoom / 1.2);
+      if (event.key === '+' || event.key === '=') setZoom(zoom * 1.2);
+      if (event.key === '0') resetView();
+    });
+    window.addEventListener('keyup', (event) => {
+      if (event.code === 'Space') spaceDown = false;
+    });
+
+    window.addEventListener('message', (event) => {
+      if (!event.data || event.data.type !== 'streamlit:render') return;
+      render(event.data.args);
+    });
+
+    Streamlit.ready();
+    setStableFrameHeight(true);
+  </script>
+</body>
+</html>
